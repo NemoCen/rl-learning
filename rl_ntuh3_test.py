@@ -5,6 +5,7 @@ from gymnasium import spaces
 from stable_baselines3 import PPO
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import SubprocVecEnv
+from stable_baselines3.common.vec_env import VecNormalize   # 新引入
 import torch.nn as nn
 import warnings
 import torch
@@ -81,13 +82,14 @@ class PandaObstacleEnv(gym.Env):
         # 动作空间与观测空间
         self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(7,), dtype=np.float32)  
         # 7轴关节角度、目标位置
-        self.obs_size = 7 + 3 
+        # 現在: 7 (Joints) + 3 (Goal) + 3 (EE Pos) + 3 (Relative Dist) = 16
+        self.obs_size = 7 + 3 + 3 + 3
         self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(self.obs_size,), dtype=np.float32)
         
         self.goal = np.zeros(3, dtype=np.float32)
         self.np_random = np.random.default_rng(None)
         self.prev_action = np.zeros(7, dtype=np.float32)
-        self.goal_threshold = 0.01    # 0.01m误差
+        self.goal_threshold = 0.03    # 0.01m误差
 
         # [新增] 定義最大步數
         # 訓練時 FPS 約 4000，20秒約等於 80,000 步，但這對強化學習來說太長了
@@ -151,7 +153,16 @@ class PandaObstacleEnv(gym.Env):
         joint_pos = self.data.qpos[:7].copy().astype(np.float32)
         # ee_pos = self.data.body(self.end_effector_id).xpos.copy().astype(np.float32)
         # ee_quat = self.data.body(self.end_effector_id).xquat.copy().astype(np.float32)
-        return np.concatenate([joint_pos, self.goal])
+
+        # [新增] 獲取末端執行器(手)的絕對位置
+        ee_pos = self.data.body(self.end_effector_id).xpos.copy().astype(np.float32)
+
+        # [新增] 計算「向量差」：目標在哪裡？(相對於手)
+        # 這對神經網絡來說是極其直接的指引
+        diff_to_goal = self.goal - ee_pos
+
+
+        return np.concatenate([joint_pos, self.goal, ee_pos, diff_to_goal])
 
     # def _calc_reward(self, ee_pos: np.ndarray, ee_orient: np.ndarray, joint_angles: np.ndarray, action: np.ndarray) -> tuple[np.ndarray, float]:
     #     dist_to_goal = np.linalg.norm(ee_pos - self.goal)
@@ -235,7 +246,7 @@ class PandaObstacleEnv(gym.Env):
     
         # 非线性距离奖励（保持不变）
         if dist_to_goal < self.goal_threshold:
-            distance_reward += 100.0
+            distance_reward += 200.0
         # elif dist_to_goal < 2*self.goal_threshold:
         #     distance_reward = 50.0
         # elif dist_to_goal < 3*self.goal_threshold:
@@ -297,7 +308,7 @@ class PandaObstacleEnv(gym.Env):
                 joint_penalty += 0.5 * (joint_angles[i] - max_angle)
         
         # 时间惩罚（保持不变）
-        time_penalty = 0.01
+        # time_penalty = 0.01
         
         # 总奖励：整合新的直线奖励和远离惩罚
         total_reward = (distance_reward 
@@ -393,6 +404,10 @@ def train_ppo(
         vec_env_cls=SubprocVecEnv,
         vec_env_kwargs={"start_method": "fork"}
     )
+
+    # [新增] 用 VecNormalize 包裹環境
+    # 這會自動處理觀測值和獎勵的標準化，對 PPO 收斂至關重要！
+    # env = VecNormalize(env, norm_obs=True, norm_reward=True, clip_obs=10.)
     
     if resume_from is not None:
         model = PPO.load(resume_from, env=env)  # 加载时需传入当前环境
@@ -467,15 +482,15 @@ def test_ppo(
 
 if __name__ == "__main__":
     delete_flag_file()
-    TRAIN_MODE = True  # 设为True开启训练模式
-    MODEL_PATH = "assets/model/rl_reach_target_checkpoint/panda_ppo_reach_target_v6"
-    RESUME_MODEL_PATH = "assets/model/rl_reach_target_checkpoint/panda_ppo_reach_target_v6"
+    TRAIN_MODE = False  # 设为True开启训练模式
+    MODEL_PATH = "assets/model/rl_reach_target_checkpoint/panda_ppo_reach_target_v9"
+    RESUME_MODEL_PATH = "assets/model/rl_reach_target_checkpoint/panda_ppo_reach_target_v8"
     # RESUME_MODEL_PATH = None
 
     if TRAIN_MODE:
         train_ppo(
             n_envs=12,                
-            total_timesteps=10_000_000,
+            total_timesteps=5_000_000,
             model_save_path=MODEL_PATH,
             visualize=False,
             resume_from=RESUME_MODEL_PATH
@@ -483,5 +498,5 @@ if __name__ == "__main__":
     else:
         test_ppo(
             model_path=MODEL_PATH,
-            total_episodes=20,
+            total_episodes=10,
         )
