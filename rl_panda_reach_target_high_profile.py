@@ -1,7 +1,7 @@
 import numpy as np
 import mujoco
-import gym
-from gym import spaces
+import gymnasium as gym
+from gymnasium import spaces
 from stable_baselines3 import PPO
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import SubprocVecEnv
@@ -44,6 +44,7 @@ def delete_flag_file(flag_filename="rl_visu_flag"):
 class PandaObstacleEnv(gym.Env):
     def __init__(self, visualize: bool = False):
         super(PandaObstacleEnv, self).__init__()
+        
         if not check_flag_file():
             write_flag_file()
             self.visualize = visualize
@@ -78,7 +79,7 @@ class PandaObstacleEnv(gym.Env):
         }
         
         # 动作空间与观测空间
-        self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(7,), dtype=np.float32)
+        self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(7,), dtype=np.float32)  
         # 7轴关节角度、目标位置
         self.obs_size = 7 + 3 
         self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(self.obs_size,), dtype=np.float32)
@@ -86,7 +87,12 @@ class PandaObstacleEnv(gym.Env):
         self.goal = np.zeros(3, dtype=np.float32)
         self.np_random = np.random.default_rng(None)
         self.prev_action = np.zeros(7, dtype=np.float32)
-        self.goal_threshold = 0.005
+        self.goal_threshold = 0.01    # 0.01m误差
+
+        # [新增] 定義最大步數
+        # 訓練時 FPS 約 4000，20秒約等於 80,000 步，但這對強化學習來說太長了
+        # 建議設為 1000 或 2000 步，這對機械手臂任務來說已經非常充裕
+        self.max_steps = 2000
 
     def _get_valid_goal(self) -> np.ndarray:
         """生成有效目标点"""
@@ -136,6 +142,9 @@ class PandaObstacleEnv(gym.Env):
         
         obs = self._get_observation()
         self.start_t = time.time()
+
+        self.current_step = 0  # <--- [新增] 重置步數
+        
         return obs, {}
 
     def _get_observation(self) -> np.ndarray:
@@ -216,16 +225,23 @@ class PandaObstacleEnv(gym.Env):
 
     def _calc_reward(self, ee_pos: np.ndarray, ee_orient: np.ndarray, joint_angles: np.ndarray, action: np.ndarray) -> tuple[np.ndarray, float]:
         dist_to_goal = np.linalg.norm(ee_pos - self.goal)
+
+        # 1. 距離獎勵：改為負值 (Dense Reward)，距離越遠扣分越多
+        # 這樣 Agent 為了少扣分，會想辦法靠近目標
+        distance_reward = -2.0 * dist_to_goal
+
+        # 2. 確保有時間懲罰 (Time Penalty)
+        time_penalty = 1.0  # 每一步扣 1 分
     
         # 非线性距离奖励（保持不变）
         if dist_to_goal < self.goal_threshold:
-            distance_reward = 100.0
-        elif dist_to_goal < 2*self.goal_threshold:
-            distance_reward = 50.0
-        elif dist_to_goal < 3*self.goal_threshold:
-            distance_reward = 10.0
-        else:
-            distance_reward = 1.0 / (1.0 + dist_to_goal)
+            distance_reward += 100.0
+        # elif dist_to_goal < 2*self.goal_threshold:
+        #     distance_reward = 50.0
+        # elif dist_to_goal < 3*self.goal_threshold:
+        #     distance_reward = 10.0
+        # else:
+        #     distance_reward = 1.0 / (1.0 + dist_to_goal)
 
         # 计算起点到目标的向量及相关参数
         start_to_goal = self.goal - self.start_ee_pos
@@ -244,7 +260,7 @@ class PandaObstacleEnv(gym.Env):
             linearity_error = np.linalg.norm(ee_pos - projected_point)  # 偏离直线的距离
             
             # 1. 直线接近奖励：离直线越近，奖励越高（非线性递增）
-            linearity_reward = 3.0 / (1.0 + linearity_error)  # 系数8.0可根据重要性调整
+            linearity_reward = 0.5 / (1.0 + linearity_error)  # 系数8.0可根据重要性调整
             
             # 2. 远离趋势惩罚：检测“先靠近后远离”的行为
             # 初始化或更新历史最小偏离距离（跟踪最近点）
@@ -258,8 +274,8 @@ class PandaObstacleEnv(gym.Env):
 
         # 姿态约束：保持末端朝下（保持不变）
         target_orient = np.array([0, 0, -1])
-        ee_orient_norm = ee_orient / np.linalg.norm(ee_orient)
-        dot_product = np.dot(ee_orient_norm, target_orient)
+        ee_orient_norm = ee_orient / np.linalg.norm(ee_orient)   
+        dot_product = np.dot(ee_orient_norm, target_orient) 
         angle_error = np.arccos(np.clip(dot_product, -1.0, 1.0))
         orientation_penalty = 0.3 * angle_error
         
@@ -286,6 +302,7 @@ class PandaObstacleEnv(gym.Env):
         # 总奖励：整合新的直线奖励和远离惩罚
         total_reward = (distance_reward 
                     + linearity_reward  # 新增：靠近直线的奖励
+                    - time_penalty
                     - contact_reward 
                     - smooth_penalty 
                     - orientation_penalty 
@@ -298,6 +315,9 @@ class PandaObstacleEnv(gym.Env):
         return total_reward, dist_to_goal, angle_error
 
     def step(self, action: np.ndarray) -> tuple[np.ndarray, np.float32, bool, bool, dict]:
+        truncated = False
+
+        self.current_step += 1
         # 动作缩放
         joint_ranges = self.model.jnt_range[:7]
         scaled_action = np.zeros(7, dtype=np.float32)
@@ -323,10 +343,14 @@ class PandaObstacleEnv(gym.Env):
         # print(f"[奖励] 距离目标: {dist_to_goal:.3f}, 奖励: {reward:.3f}")
 
         if not terminated:
-            if time.time() - self.start_t > 20.0:
-                reward -= 10.0
-                print(f"[超时] 时间过长，奖励减半")
-                terminated = True
+            # if time.time() - self.start_t > 20.0:
+
+            if self.current_step >= self.max_steps:
+                truncated = True  # 強制結束
+                if not terminated: # 如果還沒成功
+                    reward -= 10.0 # 可以給個超時懲罰
+                # print(f"[超时] 时间过长，奖励减半")
+                # terminated = True
 
         if self.visualize and self.handle is not None:
             self.handle.sync()
@@ -339,7 +363,7 @@ class PandaObstacleEnv(gym.Env):
             'collision': collision
         }
         
-        return obs, reward.astype(np.float32), terminated, False, info
+        return obs, reward.astype(np.float32), terminated, truncated, info
 
     def seed(self, seed: Optional[int] = None) -> list[Optional[int]]:
         self.np_random = np.random.default_rng(seed)
@@ -353,8 +377,8 @@ class PandaObstacleEnv(gym.Env):
 
 
 def train_ppo(
-    n_envs: int = 24,
-    total_timesteps: int = 40_000_000,  # 本次训练的新增步数
+    n_envs: int = 24,                                     # 并行环境数
+    total_timesteps: int = 40_000_000,                    # 本次训练的新增步数
     model_save_path: str = "panda_ppo_reach_target",
     visualize: bool = False,
     resume_from: Optional[str] = None
@@ -382,12 +406,13 @@ def train_ppo(
             env=env,
             policy_kwargs=POLICY_KWARGS,
             verbose=1,
-            n_steps=2048,          
+            n_steps=1024,          
             batch_size=2048,       
             n_epochs=10,           
             gamma=0.99,
             learning_rate=2e-4,
-            device="cuda" if torch.cuda.is_available() else "cpu",
+            # device="cuda" if torch.cuda.is_available() else "cpu",
+            device="auto",
             tensorboard_log="./tensorboard/panda_reach_target/"
         )
     
@@ -442,19 +467,21 @@ def test_ppo(
 
 if __name__ == "__main__":
     delete_flag_file()
-    TRAIN_MODE = False  # 设为True开启训练模式
-    MODEL_PATH = "assets/model/rl_reach_target_checkpoint/panda_ppo_reach_target_v3"
-    RESUME_MODEL_PATH = "assets/model/rl_reach_target_checkpoint/panda_ppo_reach_target_v3"
+    TRAIN_MODE = True  # 设为True开启训练模式
+    MODEL_PATH = "assets/model/rl_reach_target_checkpoint/panda_ppo_reach_target_v6"
+    RESUME_MODEL_PATH = "assets/model/rl_reach_target_checkpoint/panda_ppo_reach_target_v5"
+    # RESUME_MODEL_PATH = None
+
     if TRAIN_MODE:
         train_ppo(
-            n_envs=256,                
-            total_timesteps=500_000_000,
+            n_envs=12,                
+            total_timesteps=10_000_000,
             model_save_path=MODEL_PATH,
-            visualize=True,
+            visualize=False,
             resume_from=RESUME_MODEL_PATH
         )
     else:
         test_ppo(
             model_path=MODEL_PATH,
-            total_episodes=15,
+            total_episodes=20,
         )
