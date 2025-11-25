@@ -297,7 +297,7 @@ class PandaObstacleEnv(gym.Env):
                 joint_penalty += 0.5 * (joint_angles[i] - max_angle)
         
         # 时间惩罚（保持不变）
-        # time_penalty = 0.01
+        time_penalty = 0.01
         
         # 总奖励：整合新的直线奖励和远离惩罚
         total_reward = (distance_reward 
@@ -410,7 +410,7 @@ def train_ppo(
             batch_size=2048,       
             n_epochs=10,           
             gamma=0.99,
-            learning_rate=3e-4,
+            learning_rate=2e-4,
             # device="cuda" if torch.cuda.is_available() else "cpu",
             device="auto",
             tensorboard_log="./tensorboard/panda_reach_target/"
@@ -467,15 +467,15 @@ def test_ppo(
 
 if __name__ == "__main__":
     delete_flag_file()
-    TRAIN_MODE = False  # 设为True开启训练模式
-    MODEL_PATH = "assets/model/rl_reach_target_checkpoint/panda_ppo_reach_target_v5"
-    RESUME_MODEL_PATH = "assets/model/rl_reach_target_checkpoint/panda_ppo_reach_target_v5"
+    TRAIN_MODE = True  # 设为True开启训练模式
+    MODEL_PATH = "assets/model/rl_reach_target_checkpoint/panda_ppo_reach_target_v6"
+    RESUME_MODEL_PATH = "assets/model/rl_reach_target_checkpoint/panda_ppo_reach_target_v6"
     # RESUME_MODEL_PATH = None
 
     if TRAIN_MODE:
         train_ppo(
             n_envs=12,                
-            total_timesteps=5_000_000,
+            total_timesteps=10_000_000,
             model_save_path=MODEL_PATH,
             visualize=False,
             resume_from=RESUME_MODEL_PATH
@@ -483,5 +483,5 @@ if __name__ == "__main__":
     else:
         test_ppo(
             model_path=MODEL_PATH,
-            total_episodes=5,
+            total_episodes=20,
         )
