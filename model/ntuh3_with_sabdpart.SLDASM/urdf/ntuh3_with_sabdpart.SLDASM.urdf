@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This URDF was automatically created by SolidWorks to URDF Exporter! Originally created by Stephen Brawner (brawner@gmail.com) 
+     Commit Version: 1.5.1-0-g916b5db  Build Version: 1.5.7152.31018
+     For more information, please see http://wiki.ros.org/sw_urdf_exporter -->
+<robot
+  name="ntuh3_with_sabdpart.SLDASM">
+  <link
+    name="back">
+    <inertial>
+      <origin
+        xyz="-7.6509E-18 0.022801 -3.2321E-05"
+        rpy="0 0 0" />
+      <mass
+        value="1.7" />
+      <inertia
+        ixx="0.0037002"
+        ixy="4.8637E-20"
+        ixz="2.284E-20"
+        iyy="0.0047373"
+        iyz="3.3421E-07"
+        izz="0.001517" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://ntuh3_with_sabdpart.SLDASM/meshes/back.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.48627 0.48627 0.48627 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://ntuh3_with_sabdpart.SLDASM/meshes/back.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link
+    name="linkage1">
+    <inertial>
+      <origin
+        xyz="0.048055 -0.082283 -6.9819E-07"
+        rpy="0 0 0" />
+      <mass
+        value="0.27121" />
+      <inertia
+        ixx="0.00019867"
+        ixy="0.00024273"
+        ixz="-2.3107E-10"
+        iyy="0.00075246"
+        iyz="-7.3137E-11"
+        izz="0.0008772" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://ntuh3_with_sabdpart.SLDASM/meshes/linkage1.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.96863 0.8 0 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://ntuh3_with_sabdpart.SLDASM/meshes/linkage1.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="sabd_joint"
+    type="revolute">
+    <origin
+      xyz="0 -0.0085 0"
+      rpy="0 0 0" />
+    <parent
+      link="back" />
+    <child
+      link="linkage1" />
+    <axis
+      xyz="0 -1 0" />
+    <limit
+      lower="-1.57"
+      upper="1.57"
+      effort="100"
+      velocity="30" />
+  </joint>
+  <link
+    name="linkage2">
+    <inertial>
+      <origin
+        xyz="0.046208 0.1869 -0.017481"
+        rpy="0 0 0" />
+      <mass
+        value="0.42051" />
+      <inertia
+        ixx="0.0015396"
+        ixy="6.2859E-05"
+        ixz="5.9213E-08"
+        iyy="0.00021615"
+        iyz="6.4123E-09"
+        izz="0.0015915" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://ntuh3_with_sabdpart.SLDASM/meshes/linkage2.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.79216 0.81961 0.93333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://ntuh3_with_sabdpart.SLDASM/meshes/linkage2.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="shabd_joint"
+    type="fixed">
+    <origin
+      xyz="0.17854 -0.12598 0.0175"
+      rpy="0 0 0" />
+    <parent
+      link="linkage1" />
+    <child
+      link="linkage2" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+  <link
+    name="upper_arm">
+    <inertial>
+      <origin
+        xyz="-0.0070986 -4.541E-07 0.1763"
+        rpy="0 0 0" />
+      <mass
+        value="0.62024" />
+      <inertia
+        ixx="0.00069849"
+        ixy="3.2506E-08"
+        ixz="-1.6708E-05"
+        iyy="0.00060113"
+        iyz="4.1629E-09"
+        izz="0.00033923" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://ntuh3_with_sabdpart.SLDASM/meshes/upper_arm.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.79216 0.81961 0.93333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://ntuh3_with_sabdpart.SLDASM/meshes/upper_arm.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="sfe_joint"
+    type="revolute">
+    <origin
+      xyz="0.028794 0.29481 -0.01745"
+      rpy="-1.5708 0 0" />
+    <parent
+      link="linkage2" />
+    <child
+      link="upper_arm" />
+    <axis
+      xyz="-1 0 0" />
+    <limit
+      lower="-1.57"
+      upper="1.57"
+      effort="100"
+      velocity="30" />
+  </joint>
+  <link
+    name="lower_arm">
+    <inertial>
+      <origin
+        xyz="-0.02423 2.3774E-07 0.18786"
+        rpy="0 0 0" />
+      <mass
+        value="0.59" />
+      <inertia
+        ixx="0.00059032"
+        ixy="3.3783E-08"
+        ixz="6.7084E-05"
+        iyy="0.00081708"
+        iyz="5.5099E-10"
+        izz="0.00062762" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://ntuh3_with_sabdpart.SLDASM/meshes/lower_arm.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.79216 0.81961 0.93333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://ntuh3_with_sabdpart.SLDASM/meshes/lower_arm.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="efe_joint"
+    type="revolute">
+    <origin
+      xyz="0.01 0 0.3285"
+      rpy="0 0 0" />
+    <parent
+      link="upper_arm" />
+    <child
+      link="lower_arm" />
+    <axis
+      xyz="-1 0 0" />
+    <limit
+      lower="-1.57"
+      upper="1.57"
+      effort="100"
+      velocity="30" />
+  </joint>
+</robot>

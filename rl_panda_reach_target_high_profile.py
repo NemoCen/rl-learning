@@ -323,7 +323,7 @@ class PandaObstacleEnv(gym.Env):
         # 更新上一步动作
         self.prev_action = action.copy()
         
-        return total_reward, dist_to_goal, angle_error
+        return total_reward, dist_to_goal, 0.0
 
     def step(self, action: np.ndarray) -> tuple[np.ndarray, np.float32, bool, bool, dict]:
         truncated = False

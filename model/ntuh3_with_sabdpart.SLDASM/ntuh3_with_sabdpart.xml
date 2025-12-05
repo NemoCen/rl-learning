@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mujoco model="ntuh3_gowork">
+  <!-- 角度用弧度；坐标采用局部；网格从 ./meshes 目录读取 -->
+  <compiler angle="radian" coordinate="local" meshdir="meshes"/>
+  <option timestep="0.001" gravity="0 0 -9.81" integrator="RK4"/>
+
+
+  <!-- 资源：STL 网格 -->
+  <asset>
+    <mesh name="back"       file="back.STL"/>
+    <mesh name="linkage2"    file="linkage2.STL"/>
+    <mesh name="linkage1"    file="linkage1.STL"/>
+    <mesh name="upper_arm"  file="upper_arm.STL"/>
+    <mesh name="lower_arm"  file="lower_arm.STL"/>
+    
+    <texture type="skybox" file="desert.png"
+            gridsize="3 4" gridlayout=".U..LFRB.D.." />
+
+    <texture name="plane" type="2d" builtin="checker" rgb1=".1 .1 .1" rgb2=".9 .9 .9"
+            width="512" height="512" mark="cross" markrgb=".8 .8 .8" />
+
+    <material name="plane" reflectance="0.3" texture="plane" texrepeat="1 1" texuniform="true" />
+  </asset>
+
+   <default>
+    <!-- <geom solref="0.02 1" solimp="0.9 0.95 0.001" friction="0.8 0.1 0.01"/> -->
+    <joint damping="0.5" armature="0.001" frictionloss="0.5"/>
+  </default>
+
+  <!-- 视觉：可按需调整 -->
+  <visual>
+    <quality shadowsize="4096"/>
+    <headlight diffuse="1 1 1" specular="0.4 0.4 0.4"/>
+    <global offwidth="1280" offheight="720"/>
+  </visual>
+
+  <worldbody>
+    <geom name="floor" pos="0 0 0" size="10 10 .1" type="plane" material="plane"
+            condim="3" />
+    <light directional="true" ambient=".3 .3 .3" pos="30 30 30" dir="0 -2 -1"
+        diffuse=".5 .5 .5" specular=".5 .5 .5" />
+
+    <!-- 根：back（等价于 URDF 的 world->back 固连） -->
+    <body name="back" pos="0 0 1.5" euler="0 0 0">
+      <!-- back 的惯性参数（URDF inertial→MJCF inertial）；pos 为惯性中心相对 body 的偏置 -->
+      <inertial
+        pos="-7.6509E-18 0.022801 -3.2321E-05"
+        mass="1.7000"
+        fullinertia="0.0037002 0.0047373 0.001517 4.8637E-20 2.284E-20 3.3421E-07"/>
+      <!-- 用一个 geom mesh 既作可视也作碰撞（需要更细分可再加单独的碰撞 geom） -->
+      <!-- 将back的碰撞设为0，应该不影响其计算动力学 -->
+      <geom name="back_geom" type="mesh" mesh="back" rgba="0.77647 0.75686 0.73725 1" contype="0" conaffinity="0" />
+
+      <!-- 这里linkage1往y轴负方向移动0.0025m,因为若不移动会与back发生物理碰撞，虽然实际上马达会转动，但建模不会，因此会导致出现问题 -->
+      <!-- 另一种方式就是把back的contype 和 conaffinity 都设为0 ，这样会忽略back的碰撞特性，可以在之后对比两种方法对动力学计算之影响来处理  by nemo 2025/11/04 -->
+      <body name="linkage1" pos="0 -0.0085 0" euler="0 0 0">
+        <inertial
+          pos="0.048055 -0.082283 -6.9819E-07"
+          mass="0.27121"
+          fullinertia="0.00019867 0.00075246 0.0008772 0.00024273 -2.3107E-10 -7.3137E-11"/>
+        <geom name="linkage1_geom" type="mesh" mesh="linkage1" rgba="0.99608 0.99608 1 1" contype="1" conaffinity="1" condim="3"/>
+        <joint name="sabd_joint" type="hinge" pos="0 0 0" axis="0 -1 0" range="-1.57 1.57"/>
+
+        <body name="linkage2" pos="0.17854 -0.12598 0.0175" euler="0 0 0">
+          <inertial
+            pos="0.046208 0.1869 -0.017481"
+            mass="0.42051"
+            fullinertia="0.0015396 0.00021615 0.0015915 6.2855E-05 5.9213E-08 6.412E-09"/>
+          <geom name="linkage2_geom" type="mesh" mesh="linkage2" rgba="0.79216 0.81961 0.93333 1" contype="1" conaffinity="1" condim="3"/>
+          <!-- <joint name="shabd_joint" type="weld" pos="0 0 0" axis="0 0 0"/> -->
+        
+
+          <!-- sfe_joint: parent=linkage -> child=upper_arm -->
+          <!-- URDF joint origin: xyz="-5e-05 0.21038 -0.16824" rpy="3.1416 0 -1.5708" axis="-1 0 0" -->
+          <body name="upper_arm" pos="0.028794 0.29481 -0.01745" euler="-1.5708 0 0">
+            <inertial
+              pos="-0.0070986 -4.5408E-07 0.1763"
+              mass="0.62024"
+              fullinertia="0.00069849 0.00060113 0.00033923 3.2506E-08 -1.6708E-05 4.1627E-09"/>
+            <geom name="upper_arm_geom" type="mesh" mesh="upper_arm" rgba="0.79216 0.81961 0.93333 1" contype="1" conaffinity="1" condim="3"/>
+            <joint name="sfe_joint" type="hinge" pos="0 0 0" axis="-1 0 0" range="-1.57 1.57"/>
+
+            <!-- efe_joint: parent=upper_arm -> child=lower_arm -->
+            <!-- URDF joint origin: xyz="-0.01 0 0.3285" rpy="0 0 0" axis="-1 0 0" -->
+            
+            <!-- 在这里新增 upper_fts body -->
+            <!-- 上面移动了0.0025m，这边也要对应去掉 -->
+            <!-- <body name="upper_fts" pos="-0.02895 0 0.15648" euler="0 1.5708 0"> -->
+            <body name="upper_fts" pos="-0.02895 0 0.15378" euler="0 1.5708 0">
+              <geom name="upper_fts_geom" type="cylinder" size="0.040 0.0075" pos="0 0 0" rgba="0 1 0 0.8" contype="0" conaffinity="0"/>
+            </body>
+
+            <body name="lower_arm" pos="0.01 0 0.3285" euler="0 0 0">
+              <inertial
+                pos="-0.02423 2.3783E-07 0.18786"
+                mass="0.58935"
+                fullinertia="0.00059032 0.00081708 0.00062762 3.3784E-08 6.7084E-05 5.5099E-10"/>
+              <geom name="lower_arm_geom" type="mesh" mesh="lower_arm" rgba="0.79216 0.81961 0.93333 1" contype="1" conaffinity="1" condim="3"/>
+              <joint name="efe_joint" type="hinge" pos="0 0 0" axis="-1 0 0" range="-1.57 1.57"/>
+
+              <body name="lower_fts" pos="-0.02895 0 0.15378" euler="0 1.5708 0">
+                <!-- <inertial pos="0 0 0" mass="" diaginertia="1 1 1"/> -->
+                <geom name="lower_fts_geom" type="cylinder" size="0.040 0.0075" pos="0 0 0" rgba="1 0 0 0.8" contype="0" conaffinity="0"/>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <!-- 执行器：给三个关节一个位置控制器（可按需调整 kp 与 forcerange） -->
+  <actuator>
+    <position name="act_sabd" joint="sabd_joint" kp="500" forcerange="-150 150" ctrlrange="-1.57 1.57"/>
+    <position name="act_sfe"  joint="sfe_joint"  kp="500" forcerange="-150 150" ctrlrange="-1.57 1.57"/>
+    <position name="act_efe"  joint="efe_joint"  kp="500" forcerange="-150 150" ctrlrange="-1.57 1.57"/>
+
+    <!-- <general name="act_sabd" joint="sabd_joint" dyntype="none" biastype="affine" 
+             gainprm="200" biasprm="0 -20 0" ctrlrange="-1.57 1.57"/>
+
+    <general name="act_sfe" joint="sfe_joint" dyntype="none" biastype="affine" 
+             gainprm="500" biasprm="0 -50 0" ctrlrange="-1.57 1.57"/>
+
+    <general name="act_efe" joint="efe_joint" dyntype="none" biastype="affine" 
+             gainprm="500" biasprm="0 -50 0" ctrlrange="-1.57 1.57"/> -->
+
+  <!-- ctrl = 目标角度（弧度），forcerange = 关节力矩上限 -->
+  </actuator>
+
+  <actuator>
+    
+  </actuator>
+
+</mujoco>
